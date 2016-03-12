@@ -17,5 +17,8 @@ func main() {
 	location := flag.String("location", "", "analyze jobs for a specific location")
 	days := flag.Int("days", 90, "analyze jobs for the last x days")
 	flag.Parse()
+	// Initialize our analyzer
+	trend_analysis.Init()
+	// Start processing data
 	trend_analysis.Process(*numPages, *flexible, *location, *days)
 }

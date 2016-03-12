@@ -17,7 +17,7 @@ Description: Contains network request code
 const apiLocation = "https://api-v2.themuse.com/jobs"
 
 // Our HTTP(s) client
-var client = http.Client{Timeout: 1 * time.Second}
+var client = http.Client{Timeout: 5 * time.Second}
 
 // Sends request to The Muse API
 func loadPage(queryString string) (*JobQueryResponse, error) {

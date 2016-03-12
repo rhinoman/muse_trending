@@ -8,10 +8,12 @@ Description: Unit tests for the trend analyzer
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // Tests that URL strings are sane
 func TestBuildUrl(t *testing.T) {
+	Init()
 	theUrl, err := buildUrl(42, true, "The Moon")
 	if err != nil {
 		t.Error(err)
@@ -34,6 +36,10 @@ func TestBuildUrl(t *testing.T) {
 
 // Requires internet connection
 func TestLoadPage(t *testing.T) {
+	//Skipping so we don't hit the network
+	//Comment out this line to run test
+	t.SkipNow()
+	Init()
 	jqr, err := loadPage(apiLocation + "?page=1")
 	if err != nil {
 		t.Error(err)
@@ -49,10 +55,78 @@ func TestLoadPage(t *testing.T) {
 	}
 }
 
-func TestProcessResponse(t *testing.T) {
-	jqr := GenerateJobQueryResponse()
-	processResponse(jqr)
+//Test process a single word
+func TestProcessWord(t *testing.T) {
+	Init()
+	word := "f,oo.ba\nr!?"
+	processWord(word, false)
+	controlSet.Mutex.Lock()
+	if controlSet.Words["foobar"] == 0 {
+		t.Errorf("foobar not present!")
+	}
+	controlSet.Mutex.Unlock()
 }
+
+//Test process list of words
+func TestProcessWords(t *testing.T) {
+	Init()
+	words := []string{"f,oo.ba\nr?!", "donut", "app!le\n", "\tbana,na"}
+	// The expected result, to test against
+	expected := [4]string{"foobar", "donut", "apple", "banana"}
+	processWords(words, false)
+	controlSet.Mutex.Lock()
+	for _, word := range expected {
+		if controlSet.Words[word] != 1 {
+			t.Errorf("The word %v is not present!", word)
+		}
+	}
+	controlSet.Mutex.Unlock()
+}
+
+//Test process an API response
+func TestProcessResponse(t *testing.T) {
+	Init()
+	jqr := GenerateJobQueryResponse()
+	processResponse(jqr, 30, "")
+	controlSet.Mutex.Lock()
+	targetSet.Mutex.Lock()
+	if controlSet.Words["bar"] != 1 {
+		t.Error("bar not loaded in control set")
+	}
+	if targetSet.Words["bar"] != 0 {
+		t.Error("bar should not be in target set")
+	}
+	controlSet.Mutex.Unlock()
+	targetSet.Mutex.Unlock()
+	processResponse(jqr, 60, "")
+	targetSet.Mutex.Lock()
+	if targetSet.Words["bar"] != 1 {
+		t.Error("bar not loaded into target set!")
+	}
+	targetSet.Mutex.Unlock()
+}
+
+//Test target set determination function
+func TestInTarget(t *testing.T) {
+	job := GenerateJob(42, "foo")
+	if inTarget(job, 10, "") {
+		t.Error("Should not be in target")
+	}
+	if !inTarget(job, 60, "") {
+		t.Error("Should be in target!")
+	}
+	if inTarget(job, 10, "Moon") {
+		t.Error("Should not be in target!")
+	}
+	if inTarget(job, 60, "Mars") {
+		t.Error("Should not be in target!")
+	}
+	if !inTarget(job, 60, "Moon") {
+		t.Error("Should be in target!")
+	}
+}
+
+// --- Helper Functions ---
 
 func GenerateJobQueryResponse() *JobQueryResponse {
 	var jobList = make([]Job, 10)
@@ -75,10 +149,12 @@ func GenerateJobQueryResponse() *JobQueryResponse {
 }
 
 func GenerateJob(id int, contents string) Job {
-
+	now := time.Now().UTC()
 	return Job{
-		Id:       id,
-		Contents: contents,
+		Id:              id,
+		Contents:        contents,
+		PublicationDate: now.AddDate(0, 0, -40),
+		Locations:       []Location{Location{Name: "Moon"}},
 	}
 
 }

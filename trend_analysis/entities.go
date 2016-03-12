@@ -5,7 +5,10 @@ File: entities.go
 Description: Types for the Analyzer
 */
 
-import "time"
+import (
+	"sync"
+	"time"
+)
 
 // Fortunately, we only have to define fields we care about here
 type Job struct {
@@ -37,4 +40,10 @@ type JobQueryResponse struct {
 	Results   []Job `json:"results"`
 	PageCount int   `json:"page_count"`
 	PageNum   int   `json:"page"`
+}
+
+// Need a thread-safe map for storing word frequencies
+type WordSet struct {
+	Words map[string]int
+	Mutex *sync.Mutex
 }
