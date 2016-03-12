@@ -42,8 +42,29 @@ type JobQueryResponse struct {
 	PageNum   int   `json:"page"`
 }
 
-// Need a thread-safe map for storing word frequencies
-type WordSet struct {
-	Words map[string]int
-	Mutex *sync.Mutex
+// Need a thread-safe map for storing Term Frequencies
+type TFSet struct {
+	TermFreq map[string]float64
+	sync.RWMutex
 }
+
+//And another for storing number of docs containing a term
+type DFSet struct {
+	DocFreq map[string]int
+	NumDocs int
+	sync.RWMutex
+}
+
+type TFIDF map[string]float64
+
+type TrendingTerm struct {
+	Term  string
+	Score float64
+}
+
+type TrendingTermList []TrendingTerm
+
+//Need to override some functions to enable sorting for the TrendingTermList
+func (ttl TrendingTermList) Len() int           { return len(ttl) }
+func (ttl TrendingTermList) Less(i, j int) bool { return ttl[i].Score < ttl[j].Score }
+func (ttl TrendingTermList) Swap(i, j int)      { ttl[i], ttl[j] = ttl[j], ttl[i] }

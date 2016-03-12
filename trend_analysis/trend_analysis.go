@@ -2,9 +2,10 @@ package trend_analysis
 
 import (
 	"log"
+	"math"
 	"regexp"
+	"sort"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -13,8 +14,8 @@ File: trend_analysis.go
 Description: processes and identifies trending keywords
 */
 
-var targetSet WordSet
-var controlSet WordSet
+var targetSet TFSet
+var controlSet DFSet
 var tagRegex *regexp.Regexp
 var punctRegex *regexp.Regexp
 
@@ -24,34 +25,50 @@ func Init() {
 	tagRegex = regexp.MustCompile("<[^>]*>")
 	punctRegex = regexp.MustCompile("[.,?!;:()\n\r\t]")
 	// Initialize our data structures
-	targetSet = WordSet{
-		Words: make(map[string]int),
-		Mutex: &sync.Mutex{},
+	targetSet = TFSet{
+		TermFreq: make(map[string]float64),
 	}
-	controlSet = WordSet{
-		Words: make(map[string]int),
-		Mutex: &sync.Mutex{},
+	controlSet = DFSet{
+		DocFreq: make(map[string]int),
 	}
 
 }
 
 // Starts processing
-func Process(numPages int, flexible bool, location string, days int) error {
+func Process(numPages int, flexible bool, location string, days int) (TrendingTermList, []error) {
+	// Keep track of our errors
+	errorList := []error{}
 	// Start pulling data
 	for i := 0; i < numPages; i++ {
 		theUrl, err := buildUrl(i, flexible, location)
 		if err != nil {
 			log.Printf("Error building url: %v", err)
+			errorList = append(errorList, err)
 			continue
 		}
 		resp, err := loadPage(theUrl)
 		if err != nil {
 			log.Printf("Error loading page: %v", err)
+			errorList = append(errorList, err)
 			continue
 		}
 		processResponse(resp, days, location)
 	}
-	return nil
+	tfidf := computeTFIDF()
+
+	return sortResults(tfidf), errorList
+}
+
+// Sorts the final results into reverse order
+func sortResults(results TFIDF) TrendingTermList {
+	ttl := make(TrendingTermList, len(results))
+	i := 0
+	for k, v := range results {
+		ttl[i] = TrendingTerm{k, v}
+		i++
+	}
+	sort.Sort(sort.Reverse(ttl))
+	return ttl
 }
 
 // Process a single API response
@@ -65,30 +82,59 @@ func processResponse(jqr *JobQueryResponse, days int, location string) {
 		words := strings.Split(cleanString, " ")
 		processWords(words, inTarget)
 	}
+
 }
 
 // Process a list of words
 func processWords(words []string, target bool) {
-	for _, word := range words {
-		processWord(word, target)
-		// If the processed word is valid, add it to the results
+	if target {
+		occurrences := make(map[string]int)
+		for _, word := range words {
+			if cleanedWord := string(punctRegex.ReplaceAllString(word, "")); cleanedWord != "" {
+				occurrences[cleanedWord] += 1
+			}
+		}
+		//Compute term frequencies for each word
+		targetSet.Lock()
+		docSize := float64(len(words))
+		for k, v := range occurrences {
+			targetSet.TermFreq[k] = float64(v) / docSize
+		}
+		targetSet.Unlock()
+	} else {
+		//Simpler, here we're only interested in the number of documents which contain a word
+		hasOccurred := make(map[string]bool)
+		controlSet.Lock()
+		//Increase our document count
+		controlSet.NumDocs += 1
+		for _, word := range words {
+			if cleanedWord := string(punctRegex.ReplaceAllString(word, "")); cleanedWord != "" && !hasOccurred[cleanedWord] {
+				hasOccurred[cleanedWord] = true
+				controlSet.DocFreq[cleanedWord] += 1
+			}
+		}
+		controlSet.Unlock()
 	}
 }
 
-// Process a single word
-func processWord(word string, target bool) {
-	//First, remove any punctuation
-	cleanedWord := string(punctRegex.ReplaceAllString(word, ""))
-	//TODO: Then, check if this word is in our list of stopwords
-	if target { //response is in our 'target' set
-		targetSet.Mutex.Lock()
-		targetSet.Words[cleanedWord] += 1
-		targetSet.Mutex.Unlock()
-	} else {
-		controlSet.Mutex.Lock()
-		controlSet.Words[cleanedWord] += 1
-		controlSet.Mutex.Unlock()
+// Compute the TF-IDF of our target set
+func computeTFIDF() TFIDF {
+	//Create a map to hold the TF-IDF for our keywords
+	tfidf := TFIDF{}
+
+	//Now let's go through our results
+	targetSet.RLock()
+	controlSet.RLock()
+	//compute the tf-idf for each word in the target set
+	for word, targetNum := range targetSet.TermFreq {
+		df := float64(controlSet.DocFreq[word])
+		n := float64(controlSet.NumDocs)
+		idf := math.Log(n / (df + 1.0))
+		tfidf[word] = float64(targetNum) * idf
 	}
+	controlSet.RUnlock()
+	targetSet.RUnlock()
+	return tfidf
 }
 
 // Test if this job's words belong in the target set or the control set

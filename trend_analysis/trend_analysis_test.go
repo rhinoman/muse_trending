@@ -55,18 +55,6 @@ func TestLoadPage(t *testing.T) {
 	}
 }
 
-//Test process a single word
-func TestProcessWord(t *testing.T) {
-	Init()
-	word := "f,oo.ba\nr!?"
-	processWord(word, false)
-	controlSet.Mutex.Lock()
-	if controlSet.Words["foobar"] == 0 {
-		t.Errorf("foobar not present!")
-	}
-	controlSet.Mutex.Unlock()
-}
-
 //Test process list of words
 func TestProcessWords(t *testing.T) {
 	Init()
@@ -74,13 +62,13 @@ func TestProcessWords(t *testing.T) {
 	// The expected result, to test against
 	expected := [4]string{"foobar", "donut", "apple", "banana"}
 	processWords(words, false)
-	controlSet.Mutex.Lock()
+	controlSet.RLock()
 	for _, word := range expected {
-		if controlSet.Words[word] != 1 {
+		if controlSet.DocFreq[word] != 1 {
 			t.Errorf("The word %v is not present!", word)
 		}
 	}
-	controlSet.Mutex.Unlock()
+	controlSet.RUnlock()
 }
 
 //Test process an API response
@@ -88,22 +76,46 @@ func TestProcessResponse(t *testing.T) {
 	Init()
 	jqr := GenerateJobQueryResponse()
 	processResponse(jqr, 30, "")
-	controlSet.Mutex.Lock()
-	targetSet.Mutex.Lock()
-	if controlSet.Words["bar"] != 1 {
+	controlSet.RLock()
+	targetSet.RLock()
+	if controlSet.DocFreq["bar"] != 1 {
 		t.Error("bar not loaded in control set")
 	}
-	if targetSet.Words["bar"] != 0 {
+	if targetSet.TermFreq["bar"] != 0 {
 		t.Error("bar should not be in target set")
 	}
-	controlSet.Mutex.Unlock()
-	targetSet.Mutex.Unlock()
+	controlSet.RUnlock()
+	targetSet.RUnlock()
 	processResponse(jqr, 60, "")
-	targetSet.Mutex.Lock()
-	if targetSet.Words["bar"] != 1 {
+	targetSet.RLock()
+	if targetSet.TermFreq["bar"] <= 0 {
+		t.Logf("TermFreq: %v", targetSet.TermFreq["bar"])
 		t.Error("bar not loaded into target set!")
 	}
-	targetSet.Mutex.Unlock()
+	targetSet.RUnlock()
+}
+
+//Test TFIDF
+func TestComputeTFIDF(t *testing.T) {
+	//Generate our sets
+	Init()
+	controlSet.Lock()
+	controlSet.DocFreq["foo"] = 5
+	controlSet.DocFreq["bar"] = 2
+	controlSet.DocFreq["rhinoceros"] = 1
+	controlSet.NumDocs = 5
+	controlSet.Unlock()
+	targetSet.Lock()
+	targetSet.TermFreq["foo"] = 4
+	targetSet.TermFreq["bar"] = 2
+	targetSet.TermFreq["rhinoceros"] = 3
+	targetSet.Unlock()
+	tfidf := computeTFIDF()
+	t.Logf("\ntfidf: %v\n", tfidf)
+	if !(tfidf["foo"] < tfidf["bar"]) && (tfidf["bar"] < tfidf["rhinoceros"]) {
+		t.Error("TFIDF calculation is wrong!")
+	}
+
 }
 
 //Test target set determination function
