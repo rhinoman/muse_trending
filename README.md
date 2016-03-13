@@ -49,7 +49,7 @@ Example Output:
 - Job postings are divided into two “sets”: our target set(within day range and (optionally) location) and everything else(our ‘control’ set)
 - Compute the Term Frequency for each term in our target set(within day range and optionally location)
 - Compute the Inverse Document Frequency for each target set term.
-- The target term frequency is multiplied by the IDF to provide a weighted score.
+- The target term frequency is multiplied by the IDF to provide a trending score.
 
 ### Notes
 The API is not particularly helpful here:
