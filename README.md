@@ -7,6 +7,11 @@ Trending application
 
     go get github.com/rhinoman/muse_trending
     go build
+    
+### Run unit tests:
+    
+    cd trend_analysis
+    go test -v
 
 ### Usage:
 The executable takes the following arguments:
@@ -48,7 +53,10 @@ Example Output:
 
 ### Notes
 The API is not particularly helpful here:
+
 1.	It would be very useful if the results returned from the jobs endpoint were in time order (by publication_date).  They’re not in any order I could ascertain.
+
 2.	My first thought was to simply look at the “tags” field for keywords.  However, it appears the tags field isn’t used frequently enough in job records to be very useful, so going through the content is necessary.
+
 3.	The contents field contains HTML.  So all of the HTML tags must be stripped out or otherwise dealt with.  I’ve decided to use regex as a quick-and-dirty solution for this, despite the dire warnings in this SO post: http://stackoverflow.com/questions/1732348/regex-match-open-tags-except-xhtml-self-contained-tags/1732454#1732454
 
