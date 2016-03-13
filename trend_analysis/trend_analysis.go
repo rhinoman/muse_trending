@@ -32,7 +32,7 @@ func Init(stopWordsPath string) {
 	// pre-compile some regular expressions
 	htmlRegex = regexp.MustCompile("<[^>]*>")
 	//Try to get everything down to standard 'ASCII' characters, minus punctuation
-	punctRegex = regexp.MustCompile("[.,?!;:*&-()<>\\s]|[^\\x{0000}-\\x{007F}]")
+	punctRegex = regexp.MustCompile("[.,?!;:*&\\-+()<>\\s]|[^\\x{0000}-\\x{007F}]")
 	// Initialize our data structures
 	targetSet = TFSet{
 		TermFreq: make(map[string]float64),
