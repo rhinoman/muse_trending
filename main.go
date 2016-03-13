@@ -11,6 +11,7 @@ import (
 	"github.com/rhinoman/muse_trending/trend_analysis"
 	"os"
 	"text/tabwriter"
+	"time"
 )
 
 func main() {
@@ -25,8 +26,12 @@ func main() {
 	// Initialize our analyzer
 	trend_analysis.Init(*stopWordsFile)
 	// Start processing data
+	startTime := time.Now().UTC()
 	termList, errs := trend_analysis.Process(*numPages, *flexible, *location, *days)
+	endTime := time.Now().UTC()
+	runTime := endTime.Sub(startTime)
 	fmt.Println("Finished Processing")
+	fmt.Printf("\nTime Elapsed: %v\n", runTime)
 	fmt.Printf("\n**** %v Errors occurred during processing ****\n", len(errs))
 	//Go through the results
 	fmt.Println("==== Trending Terms ====")
