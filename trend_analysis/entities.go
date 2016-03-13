@@ -68,3 +68,5 @@ type TrendingTermList []TrendingTerm
 func (ttl TrendingTermList) Len() int           { return len(ttl) }
 func (ttl TrendingTermList) Less(i, j int) bool { return ttl[i].Score < ttl[j].Score }
 func (ttl TrendingTermList) Swap(i, j int)      { ttl[i], ttl[j] = ttl[j], ttl[i] }
+
+type StopWords map[string]bool

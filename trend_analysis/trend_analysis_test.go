@@ -6,14 +6,31 @@ Description: Unit tests for the trend analyzer
 */
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
+// Set up prior to a test
+func beforeTest() {
+	dir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	//The location of the stop words file is not the same when running in test
+	//So need to figure it out here
+	swFile, err := filepath.Abs(dir + "/stop_words.txt")
+	if err != nil {
+		panic(err)
+	}
+	Init(swFile)
+}
+
 // Tests that URL strings are sane
 func TestBuildUrl(t *testing.T) {
-	Init()
+	beforeTest()
 	theUrl, err := buildUrl(42, true, "The Moon")
 	if err != nil {
 		t.Error(err)
@@ -39,7 +56,7 @@ func TestLoadPage(t *testing.T) {
 	//Skipping so we don't hit the network
 	//Comment out this line to run test
 	t.SkipNow()
-	Init()
+	beforeTest()
 	jqr, err := loadPage(apiLocation + "?page=1")
 	if err != nil {
 		t.Error(err)
@@ -57,8 +74,8 @@ func TestLoadPage(t *testing.T) {
 
 //Test process list of words
 func TestProcessWords(t *testing.T) {
-	Init()
-	words := []string{"f,oo.ba\nr?!", "donut", "app!le\n", "\tbana,na"}
+	beforeTest()
+	words := []string{"f,oo.ba\nr?!", "donut ", "ap p!le\n", "\tbana,na", "and"}
 	// The expected result, to test against
 	expected := [4]string{"foobar", "donut", "apple", "banana"}
 	processWords(words, false)
@@ -68,14 +85,20 @@ func TestProcessWords(t *testing.T) {
 			t.Errorf("The word %v is not present!", word)
 		}
 	}
+	//Make sure the stop word filter is doing something
+	if controlSet.DocFreq["and"] != 0 {
+		t.Error("and is present and it shouldn't be")
+	}
 	controlSet.RUnlock()
 }
 
 //Test process an API response
 func TestProcessResponse(t *testing.T) {
-	Init()
+	beforeTest()
 	jqr := GenerateJobQueryResponse()
-	processResponse(jqr, 30, "")
+	wg.Add(1)
+	go processResponse(jqr, 30, "")
+	wg.Wait()
 	controlSet.RLock()
 	targetSet.RLock()
 	if controlSet.DocFreq["bar"] != 1 {
@@ -86,7 +109,9 @@ func TestProcessResponse(t *testing.T) {
 	}
 	controlSet.RUnlock()
 	targetSet.RUnlock()
-	processResponse(jqr, 60, "")
+	wg.Add(1)
+	go processResponse(jqr, 60, "")
+	wg.Wait()
 	targetSet.RLock()
 	if targetSet.TermFreq["bar"] <= 0 {
 		t.Logf("TermFreq: %v", targetSet.TermFreq["bar"])
@@ -98,7 +123,7 @@ func TestProcessResponse(t *testing.T) {
 //Test TFIDF
 func TestComputeTFIDF(t *testing.T) {
 	//Generate our sets
-	Init()
+	beforeTest()
 	controlSet.Lock()
 	controlSet.DocFreq["foo"] = 5
 	controlSet.DocFreq["bar"] = 2

@@ -1,11 +1,13 @@
 package trend_analysis
 
 import (
+	"html"
 	"log"
 	"math"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,14 +18,21 @@ Description: processes and identifies trending keywords
 
 var targetSet TFSet
 var controlSet DFSet
-var tagRegex *regexp.Regexp
+var htmlRegex *regexp.Regexp
 var punctRegex *regexp.Regexp
+var stopWords StopWords
+
+//A wait group for our goroutines
+var wg sync.WaitGroup
 
 // Initializes some variables
-func Init() {
+func Init(stopWordsPath string) {
+	//Load our stop words list
+	stopWords = loadStopWords(stopWordsPath)
 	// pre-compile some regular expressions
-	tagRegex = regexp.MustCompile("<[^>]*>")
-	punctRegex = regexp.MustCompile("[.,?!;:()\n\r\t]")
+	htmlRegex = regexp.MustCompile("<[^>]*>")
+	//Try to get everything down to standard 'ASCII' characters, minus punctuation
+	punctRegex = regexp.MustCompile("[.,?!;:*()<>\\s]|[^\\x{0000}-\\x{007F}]")
 	// Initialize our data structures
 	targetSet = TFSet{
 		TermFreq: make(map[string]float64),
@@ -52,8 +61,14 @@ func Process(numPages int, flexible bool, location string, days int) (TrendingTe
 			errorList = append(errorList, err)
 			continue
 		}
-		processResponse(resp, days, location)
+		if i > resp.PageCount {
+			//We're out of pages, just stop now
+			break
+		}
+		wg.Add(1)
+		go processResponse(resp, days, location)
 	}
+	wg.Wait()
 	tfidf := computeTFIDF()
 
 	return sortResults(tfidf), errorList
@@ -73,11 +88,11 @@ func sortResults(results TFIDF) TrendingTermList {
 
 // Process a single API response
 func processResponse(jqr *JobQueryResponse, days int, location string) {
-
+	defer wg.Done()
 	for _, result := range jqr.Results {
 		inTarget := inTarget(result, days, location)
 		// Trim leading and trailing whitespace and strip HTML tags
-		cleanString := strings.TrimSpace(tagRegex.ReplaceAllString(result.Contents, " "))
+		cleanString := htmlRegex.ReplaceAllString(result.Contents, " ")
 		// Split resulting string into an array of individual words
 		words := strings.Split(cleanString, " ")
 		processWords(words, inTarget)
@@ -90,7 +105,7 @@ func processWords(words []string, target bool) {
 	if target {
 		occurrences := make(map[string]int)
 		for _, word := range words {
-			if cleanedWord := string(punctRegex.ReplaceAllString(word, "")); cleanedWord != "" {
+			if cleanedWord := processWord(word); len(cleanedWord) > 1 {
 				occurrences[cleanedWord] += 1
 			}
 		}
@@ -108,12 +123,26 @@ func processWords(words []string, target bool) {
 		//Increase our document count
 		controlSet.NumDocs += 1
 		for _, word := range words {
-			if cleanedWord := string(punctRegex.ReplaceAllString(word, "")); cleanedWord != "" && !hasOccurred[cleanedWord] {
+			if cleanedWord := processWord(word); (len(cleanedWord)) > 1 && !hasOccurred[cleanedWord] {
 				hasOccurred[cleanedWord] = true
 				controlSet.DocFreq[cleanedWord] += 1
 			}
 		}
 		controlSet.Unlock()
+	}
+}
+
+// Clean up a word before processing
+func processWord(word string) string {
+	//All of the html tags have been removed, but there might be some HTML entities lingering
+	uWord := html.UnescapeString(word)
+	//Strip punctuation, strip whitespace, and force to lower case
+	finalWord := strings.ToLower(strings.TrimSpace(punctRegex.ReplaceAllString(uWord, "")))
+	//Check if this word is in our stop words list
+	if stopWords[finalWord] {
+		return "" //It's a stop word, skip it
+	} else {
+		return finalWord
 	}
 }
 
