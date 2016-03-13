@@ -55,7 +55,7 @@ func TestBuildUrl(t *testing.T) {
 func TestLoadPage(t *testing.T) {
 	//Skipping so we don't hit the network
 	//Comment out this line to run test
-	t.SkipNow()
+	//t.SkipNow()
 	beforeTest()
 	jqr, err := loadPage(apiLocation + "?page=1")
 	if err != nil {
@@ -134,6 +134,7 @@ func TestComputeTFIDF(t *testing.T) {
 	targetSet.TermFreq["foo"] = 4
 	targetSet.TermFreq["bar"] = 2
 	targetSet.TermFreq["rhinoceros"] = 3
+	targetSet.NumTerms = 9
 	targetSet.Unlock()
 	tfidf := computeTFIDF()
 	t.Logf("\ntfidf: %v\n", tfidf)

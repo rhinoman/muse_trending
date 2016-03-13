@@ -45,13 +45,14 @@ type JobQueryResponse struct {
 // Need a thread-safe map for storing Term Frequencies
 type TFSet struct {
 	TermFreq map[string]float64
+	NumTerms uint64
 	sync.RWMutex
 }
 
 //And another for storing number of docs containing a term
 type DFSet struct {
 	DocFreq map[string]int
-	NumDocs int
+	NumDocs uint64
 	sync.RWMutex
 }
 

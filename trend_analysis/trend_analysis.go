@@ -32,7 +32,7 @@ func Init(stopWordsPath string) {
 	// pre-compile some regular expressions
 	htmlRegex = regexp.MustCompile("<[^>]*>")
 	//Try to get everything down to standard 'ASCII' characters, minus punctuation
-	punctRegex = regexp.MustCompile("[.,?!;:*()<>\\s]|[^\\x{0000}-\\x{007F}]")
+	punctRegex = regexp.MustCompile("[.,?!;:*&-()<>\\s]|[^\\x{0000}-\\x{007F}]")
 	// Initialize our data structures
 	targetSet = TFSet{
 		TermFreq: make(map[string]float64),
@@ -102,33 +102,28 @@ func processResponse(jqr *JobQueryResponse, days int, location string) {
 
 // Process a list of words
 func processWords(words []string, target bool) {
-	if target {
-		occurrences := make(map[string]int)
-		for _, word := range words {
-			if cleanedWord := processWord(word); len(cleanedWord) > 1 {
-				occurrences[cleanedWord] += 1
-			}
+	hasOccurred := make(map[string]bool)
+	controlSet.Lock()
+	controlSet.NumDocs += 1
+	controlSet.Unlock()
+	for _, word := range words {
+		cleanedWord := processWord(word)
+		if len(cleanedWord) < 1 {
+			continue
 		}
-		//Compute term frequencies for each word
-		targetSet.Lock()
-		docSize := float64(len(words))
-		for k, v := range occurrences {
-			targetSet.TermFreq[k] = float64(v) / docSize
+		if !hasOccurred[cleanedWord] {
+			controlSet.Lock()
+			controlSet.DocFreq[cleanedWord] += 1
+			controlSet.Unlock()
+			hasOccurred[cleanedWord] = true
 		}
-		targetSet.Unlock()
-	} else {
-		//Simpler, here we're only interested in the number of documents which contain a word
-		hasOccurred := make(map[string]bool)
-		controlSet.Lock()
-		//Increase our document count
-		controlSet.NumDocs += 1
-		for _, word := range words {
-			if cleanedWord := processWord(word); (len(cleanedWord)) > 1 && !hasOccurred[cleanedWord] {
-				hasOccurred[cleanedWord] = true
-				controlSet.DocFreq[cleanedWord] += 1
-			}
+		if target {
+			targetSet.Lock()
+			targetSet.TermFreq[cleanedWord] += 1
+			targetSet.NumTerms += 1
+			targetSet.Unlock()
 		}
-		controlSet.Unlock()
+
 	}
 }
 
@@ -150,16 +145,22 @@ func processWord(word string) string {
 func computeTFIDF() TFIDF {
 	//Create a map to hold the TF-IDF for our keywords
 	tfidf := TFIDF{}
-
+	scalingFactor := 1e3
 	//Now let's go through our results
 	targetSet.RLock()
 	controlSet.RLock()
 	//compute the tf-idf for each word in the target set
-	for word, targetNum := range targetSet.TermFreq {
+	for word, freq := range targetSet.TermFreq {
+		//Normalized Term Frequency
+		ntf := (freq / float64(targetSet.NumTerms)) * scalingFactor
+		//Document Frequency
 		df := float64(controlSet.DocFreq[word])
+		//Total Number of Documetns
 		n := float64(controlSet.NumDocs)
+		//Inverse Document Frequency
 		idf := math.Log(n / (df + 1.0))
-		tfidf[word] = float64(targetNum) * idf
+		//Result
+		tfidf[word] = ntf * idf
 	}
 	controlSet.RUnlock()
 	targetSet.RUnlock()

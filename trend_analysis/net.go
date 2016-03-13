@@ -17,7 +17,7 @@ Description: Contains network request code
 const apiLocation = "https://api-v2.themuse.com/jobs"
 
 // Muse API Key
-const apiKey = "60262676e5ca8792aa15d41b1bcc4e7cd79a34430fda1e425477404d1d482813"
+const apiKey = ""
 
 // Our HTTP(s) client
 var client = http.Client{Timeout: 5 * time.Second}
@@ -50,7 +50,9 @@ func buildUrl(pageNum int, flexible bool, location string) (string, error) {
 	params := url.Values{}
 	params.Set("page", strconv.Itoa(pageNum))
 	params.Add("flexible", strconv.FormatBool(flexible))
-	params.Add("api_key", apiKey)
+	if apiKey != "" {
+		params.Add("api_key", apiKey)
+	}
 	if location != "" {
 		params.Add("location", location)
 	}
