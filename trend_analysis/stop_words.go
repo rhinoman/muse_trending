@@ -20,7 +20,7 @@ func loadStopWords(filename string) StopWords {
 		if err != nil {
 			panic(err)
 		}
-		filename, err = filepath.Abs(dir + "/trend_analysis/stop_words.txt")
+		filename, err = filepath.Abs(dir + "/stop_words.txt")
 		if err != nil {
 			panic(err)
 		}

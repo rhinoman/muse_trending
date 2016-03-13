@@ -21,7 +21,7 @@ func beforeTest() {
 	}
 	//The location of the stop words file is not the same when running in test
 	//So need to figure it out here
-	swFile, err := filepath.Abs(dir + "/stop_words.txt")
+	swFile, err := filepath.Abs(dir + "/../stop_words.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -55,7 +55,7 @@ func TestBuildUrl(t *testing.T) {
 func TestLoadPage(t *testing.T) {
 	//Skipping so we don't hit the network
 	//Comment out this line to run test
-	//t.SkipNow()
+	t.SkipNow()
 	beforeTest()
 	jqr, err := loadPage(apiLocation + "?page=1")
 	if err != nil {
